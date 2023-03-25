@@ -67,25 +67,41 @@ class Block(object):
 
 class State(object):
     def __init__(self):
-        # TODO: You might want to think how you will store balance per person.
+        # TODO: You might want to think how you will store balance per person. DONE
         # You don't need to worry about persisting to disk. Storing in memory is fine.
-        pass
+        self.balances = {}          # account_id (str) -> balance (int)
 
     def encode(self):
-        dumped = {}
-        # TODO: Add all person -> balance pairs into `dumped`.
+        dumped = self.balances
+        # TODO: Add all person -> balance pairs into `dumped`. DONE
         return dumped
 
+    def valid(self, transaction):
+        # TODO: check if transaction is valid against current state DONE
+        if transaction.sender not in self.balances:
+            return False
+        if transaction.amount < 0:
+            return False
+        if self.balances[transaction.sender] < transaction.amount:
+            return False
+        return True
+
     def validate_txns(self, txns):
-        result = []
-        # TODO: returns a list of valid transactions.
+        # TODO: returns a list of valid transactions. DONE
         # You receive a list of transactions, and you try applying them to the state.
         # If a transaction can be applied, add it to result. (should be included)
-        
+        result = [t for t in txns if self.valid(t)]
         return result
 
+    def apply_transaction(self, txn):
+        # apply transaction to state
+        self.balances[txn.recipient] += txn.amount
+        self.balances[txn.sender] -= txn.amount
+
     def apply_block(self, block):
-        # TODO: apply the block to the state.
+        # TODO: apply the block to the state. DONE
+        for t in block.transactions:
+            self.apply_transaction(t)
         logging.info("Block (#%s) applied to state. %d transactions applied" % (block.hash, len(block.transactions)))
 
 class Blockchain(object):
@@ -107,12 +123,24 @@ class Blockchain(object):
         :param block: A new proposed block
         :return: True if valid, False if not
         """
-        # TODO: check if received block is valid
+        # TODO: check if received block is valid DONE
         # 1. Hash should match content
+        if block._hash() != received_blockhash:
+            return False
         # 2. Previous hash should match previous block
+        if block.previous_hash != self.chain[-1]._hash():
+            return False
         # 3. Transactions should be valid (all apply to block)
+        if self.state.validate_txns(block.transactions) != block.transactions:
+            return False
         # 4. Block number should be one higher than previous block
+        if block.number != self.chain[-1].number+1:
+            return False
         # 5. miner should be correct (next RR)
+        if block.miner != next_miner(self.chain[-1], self.nodes):
+            return False
+
+        self.state.apply_block(block)
         return True
 
     def trigger_new_block_mine(self, genesis=False):
@@ -128,17 +156,23 @@ class Blockchain(object):
         logging.info("[MINER] waiting for new transactions before mining new block...")
         time.sleep(self.block_mine_time) # Wait for new transactions to come in
         miner = self.node_identifier
+        included_transactions = []
 
         if genesis:
-            block = Block(1, [], '0xfeedcafe', miner)
+            block = Block(1, included_transactions, '0xfeedcafe', miner)
         else:
             self.current_transactions.sort()
 
-            # TODO: create a new *valid* block with available transactions. Replace the arguments in the line below.
-            block = Block(1, [], '1', miner)
+            # TODO: create a new *valid* block with available transactions. Replace the arguments in the line below. DONE
+            block_num = len(self.chain)+1
+            included_transactions = self.state.validate_txns(self.current_transactions)
+            prev_block_hash = self.chain[-1]._hash()
+            block = Block(block_num, included_transactions, prev_block_hash, miner)
              
-        # TODO: make changes to in-memory data structures to reflect the new block. Check Blockchain.__init__ method for in-memory datastructures
+        # TODO: make changes to in-memory data structures to reflect the new block. Check Blockchain.__init__ method for in-memory datastructures DONE
         self.chain.append(block)
+        self.current_transactions = [t for t in self.current_transactions if t not in included_transactions]
+        self.state.apply_block(block)
 
         logging.info("[MINER] constructed new block with %d transactions. Informing others about: #%s" % (len(block.transactions), block.hash[:5]))
         # broadcast the new block to all nodes.
@@ -150,5 +184,14 @@ class Blockchain(object):
         """ Add this transaction to the transaction mempool. We will try
         to include this transaction in the next block until it succeeds.
         """
-        # TODO: check that transaction is unique.
-        self.current_transactions.append(Transaction(sender, recipient, amount))
+        # TODO: check that transaction is unique. DONE
+        txn = Transaction(sender, recipient, amount)
+        if txn in self.current_transactions:
+            return
+        self.current_transactions.append(txn)
+
+
+# Helper method that returns next miner given a block
+def next_miner(block, nodes_list):
+    next_miner_idx = (nodes_list.index(block.miner)+1)%len(nodes_list)
+    return nodes_list[next_miner_idx]

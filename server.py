@@ -1,6 +1,7 @@
 from flask import Flask, request, jsonify
 import logging
 import blockchain as bc
+from blockchain import next_miner
 
 # Instantiate the Node
 app = Flask(__name__)
@@ -29,7 +30,9 @@ def new_block_received():
     blockchain.chain.append(block)    # Add the block to the chain
     # Modify any other in-memory data structures to reflect the new block
 
-    # TODO: if I am responsible for next block, start mining it (trigger_new_block_mine).
+    # TODO: if I am responsible for next block, start mining it (trigger_new_block_mine). DONE
+    if next_miner(block, blockchain.nodes) == blockchain.node_identifier:
+        blockchain.trigger_new_block_mine()
 
     return "OK", 201
 
@@ -85,5 +88,7 @@ if __name__ == '__main__':
 
     for nodeport in args.nodes:
         blockchain.nodes.append(int(nodeport))
+    
+    blockchain.nodes.sort()
 
     app.run(host='0.0.0.0', port=port)
