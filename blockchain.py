@@ -163,18 +163,18 @@ class Blockchain(object):
         if block._hash() != received_blockhash:
             return False
         # 2. Previous hash should match previous block
-        prev_hash = len(self.chain) != 0 ? self.chain[-1]._hash(): '0xfeedcafe'
+        prev_hash =  self.chain[-1]._hash() if len(self.chain) != 0  else '0xfeedcafe'
         if block.previous_hash != prev_hash:
             return False
         # 3. Transactions should be valid (all apply to block)
         if self.state.validate_txns(block.transactions) != block.transactions:
             return False
         # 4. Block number should be one higher than previous block
-        nxt_number = len(self.chain) != 0 ? self.chain[-1].number+1 : 1
+        nxt_number = self.chain[-1].number+1 if  len(self.chain) != 0 else 1
         if block.number != nxt_number:
             return False
         # 5. miner should be correct (next RR)
-        nxt_miner = len(self.chain) != 0 ? next_miner(self.chain[-1], self.nodes) : min(self.nodes)
+        nxt_miner =  next_miner(self.chain[-1], self.nodes) if len(self.chain) != 0 else min(self.nodes)
         if block.miner != nxt_miner:
             return False
 
