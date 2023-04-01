@@ -198,6 +198,7 @@ class Test1ChainTests(unittest.TestCase):
         stagger()
 
         dumps = [n.dump() for n in self.nodes]
+        print(dumps)
         TestsUtils.checkStateEqualForAll(self, *[d['state'] for d in dumps])
         TestsUtils.checkChainEqualForAll(self, *[d['chain'] for d in dumps])
         one = dumps[0]
@@ -430,6 +431,7 @@ class Tests3UpdateableState(unittest.TestCase):
 
         commit()
         dumps = [n.dump() for n in self.nodes]
+        print(dumps)
         TestsUtils.checkChainEqualForAll(self, *[d['chain'] for d in dumps])
         TestsUtils.checkStateEqualForAll(self, *[d['state'] for d in dumps])
         self.assertTrue(dumps[1]['pending_transactions'] == [TestsUtils.txn('A', 'C', 2800)])

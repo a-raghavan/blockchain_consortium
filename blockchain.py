@@ -70,7 +70,6 @@ class State(object):
         # TODO: You might want to think how you will store balance per person. DONE
         # You don't need to worry about persisting to disk. Storing in memory is fine.
         self.balances = {}          # account_id (str) -> balance (int)
-        self.balances['genesis'] = 10000
         self.updates = {}
 
     def encode(self):
@@ -78,26 +77,33 @@ class State(object):
         # TODO: Add all person -> balance pairs into `dumped`. DONE
         return dumped
 
-    def valid(self, transaction):
+    def valid(self, transaction, temp_state):
         # TODO: check if transaction is valid against current state DONE
-        if transaction.sender not in self.balances:
+        if transaction.sender not in temp_state:
             return False
         if transaction.amount < 0:
             return False
-        if self.balances[transaction.sender] < transaction.amount:
+        if temp_state[transaction.sender] < transaction.amount:
             return False
+        
+        temp_state[transaction.recipient] = temp_state.get(transaction.recipient, 0) + transaction.amount
+        temp_state[transaction.sender] -= transaction.amount
+
         return True
 
     def validate_txns(self, txns):
         # TODO: returns a list of valid transactions. DONE
         # You receive a list of transactions, and you try applying them to the state.
         # If a transaction can be applied, add it to result. (should be included)
-        result = [t for t in txns if self.valid(t)]
+        from copy import deepcopy
+        temp_state = deepcopy(self.balances)
+
+        result = [t for t in txns if self.valid(t, temp_state)]
         return result
 
     def apply_transaction(self, txn):
         # apply transaction to state
-        self.balances[txn.recipient] += txn.amount
+        self.balances[txn.recipient] = self.balances.get(txn.recipient, 0) + txn.amount
         self.balances[txn.sender] -= txn.amount
 
     def update_history(self, txn, blocknum):
@@ -157,18 +163,20 @@ class Blockchain(object):
         if block._hash() != received_blockhash:
             return False
         # 2. Previous hash should match previous block
-        if block.previous_hash != self.chain[-1]._hash():
+        if len(self.chain) != 0 and block.previous_hash != self.chain[-1]._hash():
             return False
         # 3. Transactions should be valid (all apply to block)
         if self.state.validate_txns(block.transactions) != block.transactions:
             return False
         # 4. Block number should be one higher than previous block
-        if block.number != self.chain[-1].number+1:
+        if len(self.chain) != 0 and block.number != self.chain[-1].number+1:
             return False
         # 5. miner should be correct (next RR)
-        if block.miner != next_miner(self.chain[-1], self.nodes):
+        if len(self.chain) != 0 and block.miner != next_miner(self.chain[-1], self.nodes):
             return False
 
+        if block.number == 1:
+            self.state.balances['A'] = 10000
         self.state.apply_block(block)
         return True
 
@@ -188,7 +196,7 @@ class Blockchain(object):
         included_transactions = []
 
         if genesis:
-            included_transactions = [Transaction('genesis', 'A', 10000)]
+            included_transactions = []
             block = Block(1, included_transactions, '0xfeedcafe', miner)
         else:
             self.current_transactions.sort()
@@ -203,12 +211,18 @@ class Blockchain(object):
         self.chain.append(block)
         self.current_transactions = [t for t in self.current_transactions if t not in included_transactions]
         self.state.apply_block(block)
+        if genesis:
+            self.state.balances['A'] = 10000
+
+        print(self.state.encode)
 
         logging.info("[MINER] constructed new block with %d transactions. Informing others about: #%s" % (len(block.transactions), block.hash[:5]))
         # broadcast the new block to all nodes.
         for node in self.nodes:
             if node == self.node_identifier: continue
+            print("sending req")
             requests.post(f'http://localhost:{node}/inform/block', json=block.encode())
+            
 
     def new_transaction(self, sender, recipient, amount):
         """ Add this transaction to the transaction mempool. We will try
