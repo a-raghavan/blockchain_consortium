@@ -108,15 +108,20 @@ class State(object):
 
     def update_history(self, txn, blocknum):
         if txn.sender not in self.updates:
-            self.updates[txn.sender] = [(blocknum, -txn.amount)]
+            self.updates[txn.sender] = [[blocknum, -txn.amount]]
         else:
-            self.updates[txn.sender].append((blocknum, -txn.amount))
+            if self.updates[txn.sender][-1][0] == blocknum:
+                self.updates[txn.sender][-1][1] -= txn.amount
+            else:
+                self.updates[txn.sender].append([blocknum, -txn.amount])
         
         if txn.recipient not in self.updates:
-            self.updates[txn.recipient] = [(blocknum, txn.amount)]
+            self.updates[txn.recipient] = [[blocknum, txn.amount]]
         else:
-            self.updates[txn.recipient].append((blocknum, txn.amount))
-        
+            if self.updates[txn.recipient][-1][0] == blocknum:
+                self.updates[txn.recipient][-1][1] += txn.amount
+            else:
+                self.updates[txn.recipient].append([blocknum, txn.amount])
 
     def apply_block(self, block):
         # TODO: apply the block to the state. DONE
@@ -136,7 +141,8 @@ class State(object):
         # amount2 = -25
 
         # return [(blockNumber, amount), (blockNumber2, amount2)]
-    
+        if account not in self.updates:
+            return []
         return self.updates[account]
 
 class Blockchain(object):
@@ -180,6 +186,7 @@ class Blockchain(object):
 
         if block.number == 1:
             self.state.balances['A'] = 10000
+            self.state.updates['A'] = [(1, 10000)]
         self.state.apply_block(block)
         return True
 
@@ -216,6 +223,7 @@ class Blockchain(object):
         self.state.apply_block(block)
         if genesis:
             self.state.balances['A'] = 10000
+            self.state.updates['A'] = [(1, 10000)]
 
         print(self.state.encode)
 
