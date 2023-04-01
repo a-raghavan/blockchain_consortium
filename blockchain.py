@@ -47,7 +47,7 @@ class Block(object):
     def _hash(self):
         return hashlib.sha256(
             str(self.number).encode('utf-8') +
-            str(self.transactions).encode('utf-8') +
+            str([str(txn) for txn in self.transactions]).encode('utf-8') +
             str(self.previous_hash).encode('utf-8') +
             str(self.miner).encode('utf-8')
         ).hexdigest()
@@ -70,6 +70,8 @@ class State(object):
         # TODO: You might want to think how you will store balance per person. DONE
         # You don't need to worry about persisting to disk. Storing in memory is fine.
         self.balances = {}          # account_id (str) -> balance (int)
+        self.balances['genesis'] = 10000
+        self.updates = {}
 
     def encode(self):
         dumped = self.balances
@@ -98,11 +100,38 @@ class State(object):
         self.balances[txn.recipient] += txn.amount
         self.balances[txn.sender] -= txn.amount
 
+    def update_history(self, txn, blocknum):
+        if txn.sender not in self.updates:
+            self.updates[txn.sender] = [(blocknum, -txn.amount)]
+        else:
+            self.updates[txn.sender].append((blocknum, -txn.amount))
+        
+        if txn.recipient not in self.updates:
+            self.updates[txn.recipient] = [(blocknum, txn.amount)]
+        else:
+            self.updates[txn.recipient].append((blocknum, txn.amount))
+        
+
     def apply_block(self, block):
         # TODO: apply the block to the state. DONE
         for t in block.transactions:
+            self.update_history(t, block.number)
             self.apply_transaction(t)
         logging.info("Block (#%s) applied to state. %d transactions applied" % (block.hash, len(block.transactions)))
+        
+    def history(self, account):
+        # TODO: return a list of (blockNumber, value changes) that this account went through 
+        # Here is an example
+
+        # blockNumber = 3
+        # amount = 200
+
+        # blockNumber2 = 10
+        # amount2 = -25
+
+        # return [(blockNumber, amount), (blockNumber2, amount2)]
+    
+        return self.updates[account]
 
 class Blockchain(object):
     def __init__(self):
@@ -159,6 +188,7 @@ class Blockchain(object):
         included_transactions = []
 
         if genesis:
+            included_transactions = [Transaction('genesis', 'A', 10000)]
             block = Block(1, included_transactions, '0xfeedcafe', miner)
         else:
             self.current_transactions.sort()
@@ -184,11 +214,7 @@ class Blockchain(object):
         """ Add this transaction to the transaction mempool. We will try
         to include this transaction in the next block until it succeeds.
         """
-        # TODO: check that transaction is unique. DONE
-        txn = Transaction(sender, recipient, amount)
-        if txn in self.current_transactions:
-            return
-        self.current_transactions.append(txn)
+        self.current_transactions.append(Transaction(sender, recipient, amount))
 
 
 # Helper method that returns next miner given a block

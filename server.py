@@ -70,6 +70,14 @@ def startexp():
 def health():
     return 'OK', 200
 
+@app.route('/history', methods=['GET'])
+def history():
+    account = request.args.get('account', '')
+    if account == '':
+        return 'Missing values', 400
+    data = blockchain.state.history(account)
+    return jsonify(data), 200
+
 if __name__ == '__main__':
     from argparse import ArgumentParser
     logging.getLogger().setLevel(logging.INFO)
@@ -91,4 +99,4 @@ if __name__ == '__main__':
     
     blockchain.nodes.sort()
 
-    app.run(host='0.0.0.0', port=port)
+    app.run(host='0.0.0.0', port=port, debug=True)
